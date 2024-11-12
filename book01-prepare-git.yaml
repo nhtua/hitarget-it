@@ -1,0 +1,59 @@
+- name: Prepare Github Deployment Keys
+  hosts: localhost
+  connection: local
+  vars:
+    KEY_PATH: ~/.ssh/hitarget_api_deploy_key
+  vars_files:
+    - vault/github.yaml
+
+  tasks:
+  - name: Check key pair exists
+    stat: "path={{ KEY_PATH }}"
+    register: p
+
+  - name: Create SSH deploy key
+    community.crypto.openssh_keypair:
+      path: "{{ KEY_PATH }}"
+      type: ed25519
+    when: not p.stat.exists
+
+  - name: Copy key to Github
+    github_deploy_key:
+      owner: "nhtua"
+      repo: "hitarget-api"
+      name: "hiTarget deploy key"
+      key: "{{ lookup('file', KEY_PATH+'.pub') }}"
+      read_only: yes
+      token: "{{ VAULT_GITHUB_PAT }}"
+    no_log: true
+
+- name: Giving out private keys to server
+  hosts: web
+  vars:
+    KEY_PATH: ~/.ssh/hitarget_api_deploy_key
+
+  tasks:
+  - name: Create ~/.ssh
+    file:
+      path: /root/.ssh
+      state: directory
+      mode: '0400'
+  - name: Copy private key to server
+    copy:
+      src: "{{ KEY_PATH }}"
+      dest: /root/.ssh/hitarget_api_deploy_key
+      owner: root
+      mode: "0400"
+  - name: Create .ssh/config
+    file:
+      path: /root/.ssh/config
+      state: touch
+  - name: Config Github ssh
+    lineinfile:
+      path: /root/.ssh/config
+      line: "{{item}}"
+      insertafter: EOF
+    with_items:
+      - "Host github.com"
+      - "  Hostname github.com"
+      - "  IdentityFile=/root/.ssh/hitarget_api_deploy_key"

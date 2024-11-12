@@ -1,0 +1,61 @@
+- name: Install Python
+  hosts: web
+  roles:
+  - role: suzuki-shunsuke.pyenv
+    pyenv_root: /root/.pyenv
+    pyenv_rc_path: "/root/.bashrc"
+  - suzuki-shunsuke.pyenv-module
+  environment:
+    PYENV_ROOT: /root/.pyenv
+
+  tasks:
+  - name: Install Pypy dependencies
+    apt:
+      name:
+        - build-essential
+        - libssl-dev
+        - libffi-dev
+        - python3-dev
+        - cargo
+        - rustc
+      state: latest
+      update_cache: yes
+  - name: Install Pypy
+    pyenv:
+      version: pypy3.6-7.3.1
+      pyenv_root: /root/.pyenv
+
+- import_playbook: book01-prepare-git.yaml
+
+- name: Install Nginx
+  hosts: web
+
+  tasks:
+  - name: Install Nginx
+    apt: name=nginx state=latest  
+  - name: Remove default config file
+    file:
+      dest: "{{item}}"
+      state: absent
+    with_items:
+      - /etc/nginx/sites-available/default
+      - /etc/nginx/sites-enabled/default
+  - name: Copy configuration file
+    copy:
+      src: nginx/hitarget.me
+      dest: /etc/nginx/sites-available/hitarget.me
+      owner: root
+      mode: 0644
+      force: yes
+  - name: Enable site
+    file:
+      src: /etc/nginx/sites-available/hitarget.me
+      dest: /etc/nginx/sites-enabled/hitarget.me
+      owner: root
+      group: root
+      state: link
+      force: yes
+  - name: Restart nginx
+    service:
+      name: nginx
+      state: restarted

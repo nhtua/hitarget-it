@@ -1,0 +1,43 @@
+- name: Build hiTarget UI
+  hosts: 127.0.0.1
+  connection: local
+  vars:
+    wdir: /home/liam/Dev/fun/hitarget-ui
+  tasks:
+  - name: Install dependencies
+    npm:
+      path: "{{wdir}}"
+      state: present
+  - name: Switch to Production config
+    copy:
+      src: ui/config.json
+      dest: "{{wdir}}/public"
+  - name: Build static files
+    shell: npm run build
+    args:
+      chdir: "{{wdir}}"
+  - name: Reset configuration
+    shell: "git checkout {{wdir}}/public/config.json"
+    args:
+      chdir: "{{wdir}}"
+
+- name: Deploy production
+  hosts: web
+
+  vars:
+    wdir: /home/liam/Dev/fun/hitarget-ui
+    www: /var/www/html
+
+  tasks:
+  - name: Clear old files
+    file:
+      path: "{{www}}/*"
+      state: absent
+
+  - name: Copy assets to webserver
+    copy:
+      src: "{{wdir}}/dist/"
+      dest: "{{www}}"
+      owner: www-data
+      group: www-data
+      mode: 0755

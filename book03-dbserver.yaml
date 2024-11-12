@@ -1,0 +1,111 @@
+- import_playbook: book01-init.yaml
+- import_playbook: book03-mongodb-tls.yaml
+
+- name: Setup MongoDB server
+  hosts: db
+  vars:
+    MONGODB_DATA_DIRECTORY: /var/lib/mongodb
+  vars_files:
+    - vault/mongodb.yaml
+  handlers:
+    - name: restart mongod
+      systemd: name=mongod state=restarted
+
+  tasks:
+    - name: Import the public key used by the package management system
+      shell: wget --no-check-certificate -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
+
+    - name: Create a /etc/apt/sources.list.d/mongodb-org-4.4.list file for MongoDB
+      shell: echo "deb http://repo.mongodb.org/apt/debian buster/mongodb-org/4.4 main" | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
+      args:
+        creates: /etc/apt/sources.list.d/mongodb-org-4.4.list
+
+    - name: install mongoDB
+      apt:
+        name: mongodb-org
+        state: present
+        update_cache: yes
+
+    - name: copy config file
+      template:
+        src: mongodb/mongod.conf
+        dest: /etc/mongod.conf
+        owner: root
+        group: root
+        mode: 0644
+        force: yes
+      loop:
+        - { bindIp: "10.118.0.3"}
+      notify:
+        - restart mongod
+
+    - name: Create DB directory
+      file:
+        path: "{{MONGODB_DATA_DIRECTORY}}"
+        state: directory
+        owner: mongodb
+
+    - name: create /etc/security/limits.d/mongodb.conf
+      copy:
+        src: mongodb/security-mongod.conf
+        dest: /etc/security/limits.d/mongod.conf
+        owner: root
+        group: root
+        mode: 0644
+        force: yes
+      notify:
+        - restart mongod
+
+    - name:  Set vm.dirty_ratio
+      sysctl:
+        name: vm.dirty_ratio
+        value: '15'
+        state: present
+
+    - name:  Set vm.dirty_background_ratio
+      sysctl:
+        name: vm.dirty_background_ratio
+        value: '5'
+        state: present
+
+    - name: Set vm.swappiness
+      sysctl:
+        name: vm.swappiness
+        value: '10'
+        state: present
+
+    - name: Set net.core.somaxconn
+      sysctl:
+        name: net.core.somaxconn
+        value: '4096'
+        state: present
+
+    - name: Set net.ipv4.tcp_fin_timeout
+      sysctl:
+        name: net.ipv4.tcp_fin_timeout
+        value: '30'
+        state: present
+
+    - name: net.ipv4.tcp_keepalive_intvl
+      sysctl:
+        name: net.ipv4.tcp_keepalive_intvl
+        value: '30'
+        state: present
+
+    - name: net.ipv4.tcp_keepalive_time
+      sysctl:
+        name: net.ipv4.tcp_keepalive_time
+        value: '120'
+        state: present
+
+    - name: net.ipv4.tcp_max_syn_backlog
+      sysctl:
+        name: net.ipv4.tcp_max_syn_backlog
+        value: '4096'
+        state: present
+
+    - name: Ensure mongodb is running and and enabled to start automatically on reboots
+      systemd:
+        name: mongod
+        enabled: yes
+        state: started

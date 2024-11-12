@@ -1,0 +1,56 @@
+# Virtual Host configuration for example.com
+#
+# You can move that to a different file under sites-available/ and symlink that
+# to sites-enabled/ to enable it.
+#
+server {
+	listen 80;
+	listen [::]:80;
+
+	server_name hitarget.me;
+
+	root /var/www/html;
+	index index.html;
+
+	location / {
+		try_files $uri $uri/ /index.html;
+	}
+}
+
+server {
+
+	root /var/www/html;
+
+	index index.html index.htm index.nginx-debian.html;
+  	server_name hitarget.me; # managed by Certbot
+
+
+	location / {
+		try_files $uri $uri/ /index.html;
+	}
+
+	location /api/v1 {
+		proxy_set_header Host $host;
+	 	proxy_set_header X-Real-IP $remote_addr;
+    proxy_pass http://127.0.0.1:5000$uri$is_args$args;
+	}
+
+	  listen [::]:443 ssl ipv6only=on; # managed by Certbot
+	  listen 443 ssl; # managed by Certbot
+	  ssl_certificate /etc/letsencrypt/live/hitarget.me/fullchain.pem; # managed by Certbot
+	  ssl_certificate_key /etc/letsencrypt/live/hitarget.me/privkey.pem; # managed by Certbot
+	  include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+	  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+
+}
+server {
+	  if ($host = hitarget.me) {
+	      return 301 https://$host$request_uri;
+	  } # managed by Certbot
+
+	listen 80 ;
+	listen [::]:80 ;
+	  server_name hitarget.me;
+	  return 404; # managed by Certbot
+
+}

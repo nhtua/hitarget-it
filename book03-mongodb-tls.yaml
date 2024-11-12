@@ -1,0 +1,58 @@
+- name: Configuration of MongoDB to use TLS/SSL
+  hosts: db
+  vars_files:
+    - vault/mongodb.yaml
+
+  tasks:
+    - name: Install required packages
+      apt:
+        name: python3-cryptography
+        state: present
+
+    - name: Check TLS key's directory
+      file:
+        path: "/etc/ssl/{{item}}"
+        state: directory
+      with_items:
+        - private
+        - csr
+        - crt
+        - bundle
+
+    - name: Generate an OpenSSL private key with the default values (4096 bits, RSA) and a passphrase
+      community.crypto.openssl_privatekey:
+        path: "/etc/ssl/private/{{TLS_KEY_NAME}}.pem"
+        passphrase: "{{RSA_PASSPHRASE}}"
+        cipher: auto
+        type: RSA
+
+    - name: Generate an OpenSSL Certificate Signing Request with a passphrase protected private key
+      community.crypto.openssl_csr:
+        path: "/etc/ssl/csr/{{TLS_KEY_NAME}}.csr"
+        privatekey_path: "/etc/ssl/private/{{TLS_KEY_NAME}}.pem"
+        privatekey_passphrase: "{{RSA_PASSPHRASE}}"
+        common_name: tor-dbserver
+
+    - name: Generate a Self Signed OpenSSL certificate
+      community.crypto.x509_certificate:
+        path: "/etc/ssl/crt/{{TLS_KEY_NAME}}.crt"
+        privatekey_path: "/etc/ssl/private/{{TLS_KEY_NAME}}.pem"
+        csr_path: "/etc/ssl/csr/{{TLS_KEY_NAME}}.csr"
+        privatekey_passphrase: "{{RSA_PASSPHRASE}}"
+        provider: selfsigned
+
+    - name: Clean /etc/ssl/bundle
+      file:
+        path: "/etc/ssl/bundle/{{TLS_KEY_NAME}}.pem"
+        state: absent
+
+    - name: Combine key and cert for MongoDB
+      shell: "cat /etc/ssl/private/{{TLS_KEY_NAME}}.pem /etc/ssl/crt/{{TLS_KEY_NAME}}.crt > /etc/ssl/bundle/{{TLS_KEY_NAME}}.pem"
+
+    - name: Change key owner
+      file:
+        path: /etc/ssl
+        recurse: yes
+        mode: "755"
+        owner: mongodb
+        group: root

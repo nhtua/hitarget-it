@@ -1,0 +1,54 @@
+- name: Issueing Let's Encrypt Cert
+  hosts: tor_webserver
+  vars:
+    action: run
+  tasks:
+    - name: Update repositories
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+    - name: Install Snapd
+      apt:
+        name: snapd
+        state: present
+    - name: Install snap core
+      community.general.snap:
+        name: core
+        channel: stable
+    - name: Refesh snap
+      shell: snap refresh core
+    - name: Remove old CertBot
+      apt:
+        name: certbot
+        state: absent
+    - name: install CertBot
+      snap:
+        name: certbot
+        classic: yes
+    - name: prepare certbot command
+      file:
+        src: /snap/bin/certbot
+        dest: /usr/bin/certbot
+        owner: root
+        group: root
+        state: link
+
+    - name: acquire HTTPS cert
+      shell: |
+        certbot {{action}} \
+          --non-interactive \
+          --nginx \
+          --preferred-challenges http \
+          -d hitarget.me \
+          -m liam102ca@outlook.com \
+          --agree-tos
+      when: action == "run"
+
+    - name: Create cronjob auto renew
+      copy:
+        dest: '/etc/cron.daily/certbot'
+        owner: root
+        mode: a+x
+        content: |
+          #!/bin/sh
+          certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start"
