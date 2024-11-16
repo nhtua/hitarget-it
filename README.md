@@ -1,6 +1,6 @@
 # Hello my targets! - HiTarget
 
-**hitarget-it** is an Ansible playbook collection for HiTarget configuration and deployment. `hitarget` was design with 3 main components: 
+**hitarget-it** is an Ansible playbook collection for HiTarget configuration and deployment. `hitarget` was designed with 3 main components: 
 
 - [hitarget-api](https://github.com/nhtua/hitarget-api): the backend api is written in Python 3.6 using FastAPI, which processes all logic of this TODO list app
 - [hitarget-ui](https://github.com/nhtua/hitarget-ui): the frontent UI is written in Javascript using VueJs 3.x
